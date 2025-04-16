@@ -59,15 +59,22 @@ def slice_stl(
         bool: True if slicing was successful, False otherwise
     """
 
-    prusa_slicer_path = r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"
+    if os.name == 'nt':  # Windows
+        prusa_slicer_path = r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"
+        # Check if PrusaSlicer exists at the expected path
+        if not os.path.exists(prusa_slicer_path):
+            raise FileNotFoundError(f"PrusaSlicer executable not found at {prusa_slicer_path}")
+        
+        # Build command
+        command = f'"{prusa_slicer_path}" --export-gcode'
+        
+    else:  # Linux
+        prusa_slicer_path = r"prusa-slicer"
+        # Build command
+        command = f'{prusa_slicer_path} --export-gcode'
 
     
-    # Check if PrusaSlicer exists at the expected path
-    if not os.path.exists(prusa_slicer_path):
-        raise FileNotFoundError(f"PrusaSlicer executable not found at {prusa_slicer_path}")
     
-    # Build command
-    command = f'"{prusa_slicer_path}" --export-gcode'
     
     # Add options if provided
     if output_gcode_path:
@@ -84,7 +91,7 @@ def slice_stl(
     
     try:
         # Execute PrusaSlicer
-        result = fancy_shell(command)
+        fancy_shell(command)
         print("Slicing successful")
         return True
     except subprocess.CalledProcessError as e:
@@ -101,3 +108,7 @@ if __name__ == "__main__":
     slice_stl(stl_file_path=stl_file, output_gcode_path=output_file, layer_height=0.2)
 
     details = get_print_details(output_file + "/moon.gcode")
+
+    print("Estimated Time:", details['estimated_time'])
+    print("Filament Length:", details['filament_length'])
+    print("Filament Weight:", details['filament_weight'])
