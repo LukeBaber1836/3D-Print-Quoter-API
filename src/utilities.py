@@ -80,7 +80,7 @@ def time_str_to_seconds(time_str):
 
 def check_printability(
         stl_file_path, 
-        printer_dimensions=(250, 210, 210)
+        printer_dimensions=(210, 210, 250)
     ):
     """
     Check if an STL file's dimensions are within the printer's build volume

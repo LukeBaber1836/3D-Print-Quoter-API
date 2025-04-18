@@ -20,7 +20,7 @@ class PrusaSlicer:
         cost_per_gram=0.1,      # Cost per gram of filament
         currency="USD",         # Currency for pricing
         cost_per_hour=1.0,      # Cost per hour of printing
-        config_path=None,       # Path to PrusaSlicer config file
+        config_path=Path("./configs/config.ini"),       # Path to PrusaSlicer config file
     ):
         """
         Initialize a PrusaSlicer instance with slicing parameters
@@ -152,11 +152,14 @@ if __name__ == "__main__":
     )
     
     # Slice with default parameters
-    checks = check_printability(slicer.stl_file_path)
+    checks = check_printability(
+        slicer.stl_file_path,
+        printer_dimensions=(100, 100, 100),
+    )
     
     if checks['printable']:
         slicer.slice()
         quote = slicer.quote_price_basic()
         print(quote)
     else:
-        print(checks['message'])
+        print(f"The STL file is to large to print with the given printer dimensions (mm): X: {checks['printer_dimensions']['x']}, Y: {checks['printer_dimensions']['y']}, Z: {checks['printer_dimensions']['z']}")
