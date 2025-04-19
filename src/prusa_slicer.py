@@ -137,8 +137,7 @@ class PrusaSlicer:
             'estimated_time': details['estimated_time'],
             'filament_weight': weight,
             'filament_cost': details['filament_cost'],
-            'estimated_time_seconds': time,
-            'estimate_time': details['estimated_time'],
+            'estimated_time_seconds': time
         }
 
         return quote

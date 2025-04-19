@@ -1,8 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 import shutil
-import tempfile
-import os
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -13,8 +11,8 @@ from prusa_slicer import PrusaSlicer
 app = FastAPI(title="3D Printing API", description="API for slicing 3D models")
 
 # Create directories for file storage
-UPLOAD_DIR = Path("/app/uploads")
-OUTPUT_DIR = Path("/app/outputs")
+UPLOAD_DIR = Path("/app/src/uploads")
+OUTPUT_DIR = Path("/app/src/outputs")
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -28,10 +26,12 @@ class SliceResponse(BaseModel):
 class QuoteResponse(BaseModel):
     job_id: str
     file_name: str
+    total_price: Optional[float] = None
+    currency: Optional[str] = None
     estimated_time: Optional[str] = None
-    filament_length: Optional[float] = None
     filament_weight: Optional[float] = None
-    price: Optional[float] = None
+    filament_cost: Optional[float] = None
+    estimated_time_seconds: Optional[int] = None
     status: str
 
 @app.post("/upload-stl/", response_model=SliceResponse)
@@ -87,7 +87,6 @@ async def slice_model(
     success = slicer.slice(
         stl_file_path=str(file_path),
         output_gcode_path=str(job_output_dir),
-        config_path=config_path,
         printer_profile=printer_profile
     )
     
@@ -126,9 +125,12 @@ async def quote_model(
     return QuoteResponse(
         job_id=job_id,
         file_name=file_name,
+        total_price=details['total_price'],
+        currency=details['currency'],
         estimated_time=details['estimated_time'],
-        filament_length=details['filament_length'],
         filament_weight=details['filament_weight'],
+        filament_cost=details['filament_cost'],
+        estimated_time_seconds=details['estimated_time_seconds'],
         status="quoted"
     )
 
