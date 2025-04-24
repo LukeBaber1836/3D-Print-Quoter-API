@@ -1,11 +1,11 @@
-FROM debian:bullseye-slim
+FROM debian
 
 # Set the working directory in the container
 WORKDIR /app
 
 # Install Python and pip
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip && \
+    python3 python3-pip git && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
     # Copy the entire working directory into the container
