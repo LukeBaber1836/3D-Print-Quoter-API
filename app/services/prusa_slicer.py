@@ -20,7 +20,7 @@ class PrusaSlicer:
         cost_per_gram=0.1,      # Cost per gram of filament
         currency="USD",         # Currency for pricing
         cost_per_hour=1.0,      # Cost per hour of printing
-        config_path=Path("./configs/config.ini"),       # Path to PrusaSlicer config file
+        config_path=Path("./app/schemas/configs/config.ini"),       # Path to PrusaSlicer config file
     ):
         """
         Initialize a PrusaSlicer instance with slicing parameters

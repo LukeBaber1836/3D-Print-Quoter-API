@@ -2,37 +2,14 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Background
 from fastapi.responses import FileResponse
 import shutil
 import uuid
-from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel
+from pathlib import Path
 
+from app.schemas.responses import SliceResponse, QuoteResponse
+from app.constants import UPLOAD_DIR, OUTPUT_DIR
 from app.services.prusa_slicer import PrusaSlicer
 
 router = APIRouter()
-
-# Create directories for file storage
-UPLOAD_DIR = Path("/app/app/db/uploads")
-OUTPUT_DIR = Path("/app/app/db/outputs")
-
-UPLOAD_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
-
-class SliceResponse(BaseModel):
-    job_id: str
-    file_name: str
-    status: str
-    gcode_path: Optional[str] = None
-    
-class QuoteResponse(BaseModel):
-    job_id: str
-    file_name: str
-    total_price: Optional[float] = None
-    currency: Optional[str] = None
-    estimated_time: Optional[str] = None
-    filament_weight: Optional[float] = None
-    filament_cost: Optional[float] = None
-    estimated_time_seconds: Optional[int] = None
-    status: str
 
 @router.post("/upload-stl/", response_model=SliceResponse)
 async def upload_stl(file: UploadFile = File(...)):
@@ -41,7 +18,7 @@ async def upload_stl(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File must be an STL")
     
     job_id = str(uuid.uuid4())
-    job_output_dir = UPLOAD_DIR / job_id
+    job_output_dir = Path(UPLOAD_DIR / job_id)
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = UPLOAD_DIR / job_id / file.filename
