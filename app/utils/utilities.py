@@ -1,9 +1,12 @@
 import sys
 import logging
 import subprocess
-import numpy as np
 from stl import mesh
 from pathlib import Path
+from io import BytesIO
+from typing import Union
+import aiofiles
+from fastapi import UploadFile
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +146,42 @@ def check_printability(
     except Exception as e:
         logger.error(f"Error checking STL dimensions: {str(e)}")
         return {'error': f"Failed to analyze STL file: {str(e)}"}
+
+
+async def convert_path_to_upload_file(file_path: Union[str, Path]) -> UploadFile:
+    """
+    Convert a local file path to a FastAPI UploadFile object
+    
+    Args:
+        file_path: Path to the file (str or Path object)
+        
+    Returns:
+        UploadFile: A FastAPI UploadFile object
+    
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+    """
+    # Convert to Path object if it's a string
+    path = Path(file_path) if isinstance(file_path, str) else file_path
+    
+    # Check if file exists
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    
+    # Read file content
+    async with aiofiles.open(path, 'rb') as f:
+        content = await f.read()
+    
+    # Create file-like object from content
+    file_obj = BytesIO(content)
+    
+    # Create UploadFile
+    upload_file = UploadFile(
+        filename=path.name,
+        file=file_obj
+    )
+    
+    return upload_file
 
 
 def shell(

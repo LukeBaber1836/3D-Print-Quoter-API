@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 class PrusaSlicer:
     def __init__(
-        self,
+        self, 
         stl_file_path: Path,  # Path to the STL file
         base_price=5.0,         # Base price for slicing
         cost_per_gram=0.1,      # Cost per gram of filament
         currency="USD",         # Currency for pricing
         cost_per_hour=1.0,      # Cost per hour of printing
-        config_path=Path("./app/schemas/configs/config.ini"),       # Path to PrusaSlicer config file
+        config_path=Path("./app/services/configs/config.ini"),       # Path to PrusaSlicer config file
     ):
         """
         Initialize a PrusaSlicer instance with slicing parameters
@@ -53,7 +53,7 @@ class PrusaSlicer:
     def slice(
             self,
             stl_file_path : Path = None,
-            output_gcode_path : Path = None, 
+            output_gcode_path : Path = '/app/app/db/temp',
             **override_params
         ):
         """
@@ -78,9 +78,8 @@ class PrusaSlicer:
         params = {param: value for param, value in self.__dict__.items() if param in self.param_flags}
         params.update(override_params)
         
-        # Add output path if provided
-        if output_gcode_path:
-            command += f" --output {output_gcode_path}"
+        # Add output path
+        command += f" --output {output_gcode_path}"
         
         # Use object STL file path if not provided
         if stl_file_path is None:
