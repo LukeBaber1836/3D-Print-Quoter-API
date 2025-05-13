@@ -7,45 +7,37 @@ router = APIRouter()
 
 @router.post("/instant-quote/", response_model=InstantQuoteResponse)
 async def instant_quote(
+    user_id: str,
     file: UploadFile = File(...)
 ):
     """Get instant quote details for a sliced model"""
-    stl_response = await upload_stl(
+    upload_response = await upload_stl(
         file=file,
-        folder_name='temp'
+        user_id=user_id,
+        local_upload=True,
     )
-
+    
     slice_model_response = await slice_model(
-        background_tasks=None,
-        user_id='test_user',
-        file_path=stl_response.file_path
+        user_id=user_id,
+        use_local=True,
+        save_file=False,
+        file_path=upload_response.file_path + '/' + upload_response.file_name,
     )
 
     quote_model_response = await quote_model(
-        job_id=slice_model_response.job_id,
-        file_name=slice_model_response.file_name
-    )
-
-    # Clean up temporary files
-    await delete_file(
-        user_id="test_user",
-        bucket_name="stl-files",
-        file_path=stl_response.file_path
-    )
-    await delete_file(
-        user_id="test_user",
-        bucket_name="gcode-files",
-        file_path=slice_model_response.file_path
+        user_id=user_id,
+        gcode_file_path=slice_model_response.gcode_path,
+        use_local=True,
     )
 
     return InstantQuoteResponse(
-        job_id = quote_model_response.job_id,
-        file_name=quote_model_response.file_name,
+        user_id = quote_model_response.user_id,
+        gcode_path=quote_model_response.gcode_path,
         total_price=quote_model_response.total_price,
         currency=quote_model_response.currency,
         estimated_time=quote_model_response.estimated_time,
+        estimated_time_seconds=quote_model_response.estimated_time_seconds,
         filament_weight=quote_model_response.filament_weight,
         filament_cost=quote_model_response.filament_cost,
-        estimated_time_seconds=quote_model_response.estimated_time_seconds,
         status="quoted"
     )

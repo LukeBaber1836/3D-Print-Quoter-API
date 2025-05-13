@@ -109,11 +109,16 @@ def download_file(bucket_name: str, file_path: str) -> dict:
         response = supabase.storage.from_(bucket_name).download(file_path)
         return {
             "message": f"File '{file_path}' downloaded successfully", 
+            "status": 200,
             "data": response
         }
     
     except Exception as e:
-        return {"error": str(e)}
+        return {
+            "message": f"Failed to download file '{file_path}'",
+            "status": 404,
+            "data": e
+        }
 
 def delete_file(bucket_name: str, file_path: str) -> dict:
     """

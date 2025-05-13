@@ -1,4 +1,6 @@
 import sys
+import time
+import shutil
 import logging
 import subprocess
 from stl import mesh
@@ -182,6 +184,37 @@ async def convert_path_to_upload_file(file_path: Union[str, Path]) -> UploadFile
     )
     
     return upload_file
+
+
+def cleanup_files(user_id: str):
+    """
+    Clean up temporary files for a user and remove the directory
+    
+    Args:
+        user_id (str): User ID to identify the temporary files
+    """
+    # Define the directory to clean up
+    temp_dir = Path(f"/app/app/db/temp/{user_id}")
+    
+    # Check if the directory exists
+    if temp_dir.exists():
+        # Remove the directory and its contents
+        shutil.rmtree(temp_dir)
+
+
+# Define a cleanup function
+def cleanup_after_download(user_id: str):
+    """Delete a file after it has been downloaded"""
+    # Small delay to ensure file has been served
+    time.sleep(1)
+    
+    # Define the directory to clean up
+    temp_dir = Path(f"/app/app/db/temp/{user_id}")
+    
+    # Check if the directory exists
+    if temp_dir.exists():
+        # Remove the directory and its contents
+        shutil.rmtree(temp_dir)
 
 
 def shell(

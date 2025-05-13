@@ -1,10 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
+
 import shutil
-import uuid
 from typing import Optional
 from pathlib import Path
-from app.utils.utilities import convert_path_to_upload_file
+
+from app.utils.utilities import convert_path_to_upload_file, cleanup_files, cleanup_after_download
 from app.schemas.responses import STLResponse ,SliceResponse, QuoteResponse, InstantQuoteResponse
 from app.constants import LOCAL_DIR, BUCKET_STL_FILES, BUCKET_GCODE_FILES
 from app.services.prusa_slicer import PrusaSlicer
@@ -14,37 +15,55 @@ router = APIRouter()
 
 @router.post("/upload-stl/", response_model=STLResponse)
 async def upload_stl(
+        user_id: str = Form(...),
         file: UploadFile = File(...),
         folder_name: str = Form(None),
+        local_upload: bool = False
     ):
     """Upload an STL file"""
     if not file.filename.lower().endswith('.stl'):
         raise HTTPException(status_code=400, detail="File must be an STL")
-    
-    user_id = "test_user"  # Replace with actual user ID from authentication context
 
-    response = await upload_file(
-        user_id=user_id,
-        folder_name=folder_name,
-        bucket_name="stl-files",
-        file=file
-    )
+    if local_upload:
+        job_output_dir = Path(LOCAL_DIR / user_id)
+        job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    return STLResponse(
-        status=response['status'],
-        user_id=user_id,
-        file_name=file.filename,
-        file_path=response['file_path']
-    )
+        file_path = LOCAL_DIR / user_id / file.filename
+
+        # Save the uploaded file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return STLResponse(
+            status="success",
+            user_id=user_id,
+            file_name=file.filename,
+            file_path=str(job_output_dir)
+        )
+
+    else:
+        response = await upload_file(
+            user_id=user_id,
+            folder_name=folder_name,
+            bucket_name="stl-files",
+            file=file
+        )
+
+        return STLResponse(
+            status=response['status'],
+            user_id=user_id,
+            file_name=file.filename,
+            file_path=response['file_path']
+        )
 
 @router.post("/slice/", response_model=SliceResponse)
 async def slice_model(
-    background_tasks: BackgroundTasks,
-    user_id: str = Form(...),
-    file_path: str = Form(...),
-    remove_local: bool = Form(True),
-    save_file: bool = Form(True),
-    config_path: Optional[str] = Form(None),
+    user_id: str,
+    file_path: str,
+    remove_local: bool = True,
+    use_local: bool = False,
+    save_file: bool = True,
+    config_path: str = None,
     printer_profile: Optional[str] = Form(None)
 ):
     """Slice the uploaded STL file"""
@@ -53,16 +72,22 @@ async def slice_model(
     output_name = file_path_parts[-1].rsplit('.', 1)[0] + '.gcode'
     output_path = file_path.rsplit('.', 1)[0] + '.gcode'
 
-    # get file from supabase and write to local
-    download_file_response = download_file(
-        bucket_name=BUCKET_STL_FILES,
-        file_path=file_path
-    )
-    job_output_dir = LOCAL_DIR / user_id
-    job_output_dir.mkdir(parents=True, exist_ok=True)
+    if use_local:
+        # Check if the STL file exists locally
+        job_output_dir = LOCAL_DIR / user_id
+        if not (job_output_dir / file_path_parts[-1]).exists():
+            raise HTTPException(status_code=404, detail="STL file not found. Uop the model first or set use_local to False.")
+    else:
+        # Get file from supabase and write to local
+        download_file_response = download_file(
+            bucket_name=BUCKET_STL_FILES,
+            file_path=file_path
+        )
+        job_output_dir = LOCAL_DIR / user_id
+        job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(job_output_dir / file_path_parts[-1], 'wb') as f:
-        f.write(download_file_response['data'])
+        with open(job_output_dir / file_path_parts[-1], 'wb') as f:
+            f.write(download_file_response['data'])
 
     slicer = PrusaSlicer(
         stl_file_path=file_path
@@ -70,21 +95,23 @@ async def slice_model(
     
     # Run slicing operation
     success = slicer.slice(
-        stl_file_path=Path(job_output_dir / file_path_parts[-1]),
+        stl_file_path=job_output_dir / file_path_parts[-1],
         output_gcode_path=job_output_dir / output_name,
         printer_profile=printer_profile
     )
     
     if save_file:
         file = await convert_path_to_upload_file(
-            file_path=job_output_dir / file_path_parts[-1]
+            file_path=job_output_dir / output_name
         )
+
+        trimmed_folder_path = '/'.join(output_path.split('/')[2:][:-1])
 
         # Upload the sliced G-code file to Supabase
         upload_response = await upload_file(
             user_id=user_id,
             overwrite=True,
-            folder_name='gcode-files',
+            folder_name=trimmed_folder_path,
             bucket_name=BUCKET_GCODE_FILES,
             file=file
         )
@@ -108,29 +135,49 @@ async def slice_model(
 
 @router.post("/quote/", response_model=QuoteResponse)
 async def quote_model(
-    job_id: str = Form(...),
-    file_name: str = Form(...)
-):
+    user_id: str = Form(...),
+    gcode_file_path: str = Form(...),
+    use_local: bool = False
+):  
     """Get print details for a sliced model"""
     # Check if the sliced file exists
-    gcode_name = file_name.rsplit('.', 1)[0] + '.gcode'
-    gcode_path = OUTPUT_DIR / job_id / gcode_name
-    
-    if not gcode_path.exists():
-        raise HTTPException(status_code=404, detail="G-code file not found. Slice the model first.")
-    
+    gcode_path = LOCAL_DIR / user_id / gcode_file_path.split('/')[-1]
+
+    if use_local:
+        if not gcode_path.exists():
+            raise HTTPException(status_code=404, detail="G-code file not found. Slice the model first or set use_local to False.")
+    else:
+        # Download the G-code file from Supabase
+        download_response = download_file(
+            bucket_name=BUCKET_GCODE_FILES,
+            file_path=gcode_file_path
+        )
+        
+        if download_response['status'] != 200:
+            raise HTTPException(status_code=404, detail="Failed to download G-code file")
+        
+        # Write the downloaded file to local storage
+        job_output_dir = LOCAL_DIR / user_id
+        job_output_dir.mkdir(parents=True, exist_ok=True)
+        
+        with open(job_output_dir / gcode_file_path.split('/')[-1], 'wb') as f:
+            f.write(download_response['data'])
+
     slicer = PrusaSlicer(
-        stl_file_path=OUTPUT_DIR / job_id / file_name
+        stl_file_path= '' # Not used in this context
     )
     
     # Get print details
     details = slicer.quote_price_basic(
         gcode_file_path=gcode_path
     )
+
+    # Clean up local files
+    cleanup_files(user_id=user_id)
     
     return QuoteResponse(
-        job_id=job_id,
-        file_name=file_name,
+        user_id=user_id,
+        gcode_path=gcode_file_path,
         total_price=details['total_price'],
         currency=details['currency'],
         estimated_time=details['estimated_time'],
@@ -140,16 +187,35 @@ async def quote_model(
         status="quoted"
     )
 
-@router.get("/download/{job_id}/{filename}")
-async def download_gcode(job_id: str, filename: str):
+@router.get("/download/")
+async def download_gcode(
+        user_id: str,
+        gcode_path: str,
+        background_tasks: BackgroundTasks,
+    ):
     """Download a generated G-code file"""
-    file_path = OUTPUT_DIR / job_id / filename
+    download_response = download_file(
+        bucket_name=BUCKET_GCODE_FILES,
+        file_path=gcode_path
+    )
+
+    if download_response['status'] != 200:
+        raise HTTPException(status_code=404, detail="Failed to download G-code file")
+        
+    # Write the downloaded file to local storage
+    gcode_filename = gcode_path.split('/')[-1]
+    job_output_dir = LOCAL_DIR / user_id
+    job_output_dir.mkdir(parents=True, exist_ok=True)
     
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+    with open(job_output_dir / gcode_path.split('/')[-1], 'wb') as f:
+        f.write(download_response['data'])
     
+    # Add cleanup task to run after response is sent by running it in the background
+    background_tasks.add_task(cleanup_after_download, user_id=user_id)
+
+    # Construct the file response before cleaning
     return FileResponse(
-        path=file_path,
-        filename=filename,
+        path=job_output_dir / gcode_filename,
+        filename=gcode_filename,
         media_type="application/octet-stream"
     )
