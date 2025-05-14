@@ -1,22 +1,7 @@
-import os
-from supabase import create_client, Client
-from fastapi import UploadFile
-from fastapi import HTTPException
-import uuid
+from supabase import Client
+from app.db.supabase_auth import get_supabase_client
+from fastapi import UploadFile, HTTPException
 
-
-# Get Supabase credentials from environment variables
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-def get_supabase_client() -> Client:
-    """
-    Returns the initialized Supabase client
-    """
-    return supabase
 
 def create_bucket(bucket_name: str) -> dict:
     """
@@ -29,6 +14,8 @@ def create_bucket(bucket_name: str) -> dict:
         Response from Supabase API
     """
     try:
+        supabase: Client = get_supabase_client()
+
         # Check if bucket already exists
         buckets = supabase.storage.list_buckets()
         if any(bucket.name == bucket_name for bucket in buckets):
@@ -60,7 +47,9 @@ async def upload_file(
     Returns:
         Response from Supabase API with file URL
     """
-    # Create a unique file name using UUID add folder name if provided
+    supabase: Client = get_supabase_client()
+
+    # Create a file path based on user_id and folder_name
     if folder_name is not None:
         directory = f"{user_id}/{folder_name}"
     else:
@@ -106,6 +95,7 @@ def download_file(bucket_name: str, file_path: str) -> dict:
         Response from Supabase API
     """
     try:
+        supabase: Client = get_supabase_client()
         response = supabase.storage.from_(bucket_name).download(file_path)
         return {
             "message": f"File '{file_path}' downloaded successfully", 
@@ -132,6 +122,7 @@ def delete_file(bucket_name: str, file_path: str) -> dict:
         Response from Supabase API
     """
     try:
+        supabase: Client = get_supabase_client()
         response = supabase.storage.from_(bucket_name).remove([file_path])
         return {"message": f"File '{file_path}' deleted successfully", "data": response}
     

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, UploadFile, File
 from app.schemas.responses import InstantQuoteResponse
 from app.api.v1.pro_routes import upload_stl, slice_model, quote_model
-from app.db.supabase_handler import delete_file
 
 router = APIRouter()
 

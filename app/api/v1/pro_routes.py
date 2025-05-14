@@ -6,10 +6,10 @@ from typing import Optional
 from pathlib import Path
 
 from app.utils.utilities import convert_path_to_upload_file, cleanup_files, cleanup_after_download
-from app.schemas.responses import STLResponse ,SliceResponse, QuoteResponse, InstantQuoteResponse
+from app.schemas.responses import STLResponse ,SliceResponse, QuoteResponse
 from app.constants import LOCAL_DIR, BUCKET_STL_FILES, BUCKET_GCODE_FILES
 from app.services.prusa_slicer import PrusaSlicer
-from app.db.supabase_handler import upload_file, delete_file, download_file
+from app.db.supabase_handler import upload_file, download_file
 
 router = APIRouter()
 

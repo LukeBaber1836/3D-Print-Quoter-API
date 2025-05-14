@@ -34,3 +34,7 @@ class InstantQuoteResponse(BaseModel):
     filament_weight: Optional[float] = None
     filament_cost: Optional[float] = None
     status: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
