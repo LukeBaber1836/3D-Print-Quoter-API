@@ -10,6 +10,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
+            "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
         },
         {
@@ -26,6 +27,17 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Debug PrusaSlicer",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/services/prusa_slicer.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel
 
+
 class STLResponse(BaseModel):
     status: str
     user_id: str
@@ -34,6 +35,12 @@ class InstantQuoteResponse(BaseModel):
     filament_weight: Optional[float] = None
     filament_cost: Optional[float] = None
     status: str
+
+class PrintabilityResponse(BaseModel):
+    user_id : str
+    fits_printer: bool
+    model_dimensions : dict
+    printer_dimensions : dict
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -99,21 +99,21 @@ def check_printability(
     """
     try:         
         # Load the STL file
-        model = mesh.Mesh.from_file(str(stl_file_path))
+        model = mesh.Mesh.from_file(Path(stl_file_path))
         
         # Get min and max for x, y, and z
-        min_x = model.x.min()
-        max_x = model.x.max()
-        min_y = model.y.min()
-        max_y = model.y.max()
-        min_z = model.z.min()
-        max_z = model.z.max()
+        min_x = float(model.x.min())
+        max_x = float(model.x.max())
+        min_y = float(model.y.min())
+        max_y = float(model.y.max())
+        min_z = float(model.z.min())
+        max_z = float(model.z.max())
         
         # Calculate dimensions
         dimensions = {
-            'x': max_x - min_x,
-            'y': max_y - min_y,
-            'z': max_z - min_z
+            'x': float(max_x - min_x),
+            'y': float(max_y - min_y),
+            'z': float(max_z - min_z)
         }
         
         # Check if dimensions exceed printer capacity
@@ -136,15 +136,12 @@ def check_printability(
             'printable': printable,
             'model_dimensions': dimensions,
             'printer_dimensions': {
-                'x': printer_dimensions[0],
-                'y': printer_dimensions[1],
-                'z': printer_dimensions[2]
+                'x': float(printer_dimensions[0]),
+                'y': float(printer_dimensions[1]),
+                'z': float(printer_dimensions[2])
             },
             'exceeded_dimensions': exceeded_dimensions
         }
-    except ImportError:
-        logger.error("numpy-stl package required for STL dimension checking")
-        return {'error': "numpy-stl package required for STL dimension checking"}
     except Exception as e:
         logger.error(f"Error checking STL dimensions: {str(e)}")
         return {'error': f"Failed to analyze STL file: {str(e)}"}

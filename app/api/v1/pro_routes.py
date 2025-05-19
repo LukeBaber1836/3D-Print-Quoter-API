@@ -1,8 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Query
 from fastapi.responses import FileResponse
 
 import shutil
-from typing import Optional
 from pathlib import Path
 
 from app.utils.utilities import convert_path_to_upload_file, cleanup_files, cleanup_after_download
@@ -13,7 +12,11 @@ from app.db.supabase_handler import upload_file, download_file
 
 router = APIRouter()
 
-@router.post("/upload-stl/", response_model=STLResponse)
+@router.post(
+    "/stl/", 
+    response_model=STLResponse,
+    description="Upload an STL file to the database"
+    )
 async def upload_stl(
         user_id: str = Form(...),
         file: UploadFile = File(...),
@@ -56,38 +59,31 @@ async def upload_stl(
             file_path=response['file_path']
         )
 
-@router.post("/slice/", response_model=SliceResponse)
+@router.post(
+    "/stl/slice/",
+    response_model=SliceResponse,
+    description="Slice the uploaded STL file and generate the G-code"
+    )
 async def slice_model(
-    user_id: str,
-    file_path: str,
-    remove_local: bool = True,
-    use_local: bool = False,
-    save_file: bool = True,
-    config_path: str = None,
-    printer_profile: Optional[str] = Form(None)
+    user_id: str = Query(..., description="User ID for the print job"),
+    file_path: str = Query(..., description="Path to the STL file (this can be found in the upload response)"),
+    config_path: str = Query(None, description="Path to the slicing configuration file (still in development...)"),
 ):
-    """Slice the uploaded STL file"""
     # Generate output file path
     file_path_parts = file_path.split('/')
     output_name = file_path_parts[-1].rsplit('.', 1)[0] + '.gcode'
     output_path = file_path.rsplit('.', 1)[0] + '.gcode'
 
-    if use_local:
-        # Check if the STL file exists locally
-        job_output_dir = LOCAL_DIR / user_id
-        if not (job_output_dir / file_path_parts[-1]).exists():
-            raise HTTPException(status_code=404, detail="STL file not found. Uop the model first or set use_local to False.")
-    else:
-        # Get file from supabase and write to local
-        download_file_response = download_file(
-            bucket_name=BUCKET_STL_FILES,
-            file_path=file_path
-        )
-        job_output_dir = LOCAL_DIR / user_id
-        job_output_dir.mkdir(parents=True, exist_ok=True)
+    # Get file from supabase and write to local
+    download_file_response = download_file(
+        bucket_name=BUCKET_STL_FILES,
+        file_path=file_path
+    )
+    job_output_dir = LOCAL_DIR / user_id
+    job_output_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(job_output_dir / file_path_parts[-1], 'wb') as f:
-            f.write(download_file_response['data'])
+    with open(job_output_dir / file_path_parts[-1], 'wb') as f:
+        f.write(download_file_response['data'])
 
     slicer = PrusaSlicer(
         stl_file_path=file_path
@@ -96,32 +92,29 @@ async def slice_model(
     # Run slicing operation
     success = slicer.slice(
         stl_file_path=job_output_dir / file_path_parts[-1],
-        output_gcode_path=job_output_dir / output_name,
-        printer_profile=printer_profile
+        output_gcode_path=job_output_dir / output_name
     )
     
-    if save_file:
-        file = await convert_path_to_upload_file(
-            file_path=job_output_dir / output_name
-        )
+    file = await convert_path_to_upload_file(
+        file_path=job_output_dir / output_name
+    )
 
-        trimmed_folder_path = '/'.join(output_path.split('/')[2:][:-1])
+    trimmed_folder_path = '/'.join(output_path.split('/')[2:][:-1])
 
-        # Upload the sliced G-code file to Supabase
-        upload_response = await upload_file(
-            user_id=user_id,
-            overwrite=True,
-            folder_name=trimmed_folder_path,
-            bucket_name=BUCKET_GCODE_FILES,
-            file=file
-        )
-        
-        if upload_response['status'] != 'successful':
-            raise HTTPException(status_code=500, detail="Failed to upload G-code file")
-        
-        #Remove local stl and gcode file after upload for cleanup
-        if remove_local:
-            shutil.rmtree(job_output_dir)
+    # Upload the sliced G-code file to Supabase
+    upload_response = await upload_file(
+        user_id=user_id,
+        overwrite=True,
+        folder_name=trimmed_folder_path,
+        bucket_name=BUCKET_GCODE_FILES,
+        file=file
+    )
+    
+    if upload_response['status'] != 'successful':
+        raise HTTPException(status_code=500, detail="Failed to upload G-code file")
+    
+    #Remove local stl and gcode file after upload for cleanup
+    cleanup_files(user_id=user_id)
             
     if not success:
         raise HTTPException(status_code=500, detail="Slicing failed")
@@ -133,35 +126,33 @@ async def slice_model(
         gcode_path=output_path
     )
 
-@router.post("/quote/", response_model=QuoteResponse)
+@router.post(
+    "/quote/", 
+    response_model=QuoteResponse,
+    description="Calculate the cost of printing a sliced model"
+    )
 async def quote_model(
-    user_id: str = Form(...),
-    gcode_file_path: str = Form(...),
-    use_local: bool = False
+    user_id: str = Query(..., description="User ID for the print job"),
+    gcode_path: str = Query(..., description="Path to the G-code file (this can be found in the slice response)"),
 ):  
-    """Get print details for a sliced model"""
     # Check if the sliced file exists
-    gcode_path = LOCAL_DIR / user_id / gcode_file_path.split('/')[-1]
+    gcode_path = LOCAL_DIR / user_id / gcode_path.split('/')[-1]
 
-    if use_local:
-        if not gcode_path.exists():
-            raise HTTPException(status_code=404, detail="G-code file not found. Slice the model first or set use_local to False.")
-    else:
-        # Download the G-code file from Supabase
-        download_response = download_file(
-            bucket_name=BUCKET_GCODE_FILES,
-            file_path=gcode_file_path
-        )
-        
-        if download_response['status'] != 200:
-            raise HTTPException(status_code=404, detail="Failed to download G-code file")
-        
-        # Write the downloaded file to local storage
-        job_output_dir = LOCAL_DIR / user_id
-        job_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        with open(job_output_dir / gcode_file_path.split('/')[-1], 'wb') as f:
-            f.write(download_response['data'])
+    # Download the G-code file from Supabase
+    download_response = download_file(
+        bucket_name=BUCKET_GCODE_FILES,
+        file_path=gcode_path
+    )
+    
+    if download_response['status'] != 200:
+        raise HTTPException(status_code=404, detail="Failed to download G-code file")
+    
+    # Write the downloaded file to local storage
+    job_output_dir = LOCAL_DIR / user_id
+    job_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(job_output_dir / gcode_path.split('/')[-1], 'wb') as f:
+        f.write(download_response['data'])
 
     slicer = PrusaSlicer(
         stl_file_path= '' # Not used in this context
@@ -177,7 +168,7 @@ async def quote_model(
     
     return QuoteResponse(
         user_id=user_id,
-        gcode_path=gcode_file_path,
+        gcode_path=gcode_path,
         total_price=details['total_price'],
         currency=details['currency'],
         estimated_time=details['estimated_time'],
@@ -187,13 +178,15 @@ async def quote_model(
         status="quoted"
     )
 
-@router.get("/download/")
+@router.get(
+    "/gcode/",
+    description="Download the generated G-code file"
+    )
 async def download_gcode(
-        user_id: str,
-        gcode_path: str,
         background_tasks: BackgroundTasks,
+        user_id: str = Query(..., description="User ID for the print job"),
+        gcode_path: str = Query(..., description="Path to the G-code file (this can be found in the slice response)"),
     ):
-    """Download a generated G-code file"""
     download_response = download_file(
         bucket_name=BUCKET_GCODE_FILES,
         file_path=gcode_path

@@ -3,7 +3,7 @@ import os
 import logging
 from pathlib import Path
 from app.utils.utilities import (
-    fancy_shell, 
+    fancy_shell,
     get_prusa_print_details,
     time_str_to_seconds,
     check_printability
@@ -68,11 +68,7 @@ class PrusaSlicer:
             bool: True if slicing was successful, False otherwise
         """
 
-        # Build basic command
-        if os.name == 'nt':  # Windows
-            command = f'"{self.slicer_path}" --export-gcode'
-        else:  # Linux
-            command = f'{self.slicer_path} --export-gcode'
+        command = f'{self.slicer_path} --export-gcode'
         
         # Combine default parameters with any overrides
         params = {param: value for param, value in self.__dict__.items() if param in self.param_flags}
@@ -148,16 +144,3 @@ if __name__ == "__main__":
         stl_file_path=Path("./stl_files/moon.stl"),
         config_path=Path("./configs/config.ini")
     )
-    
-    # Slice with default parameters
-    checks = check_printability(
-        slicer.stl_file_path,
-        printer_dimensions=(100, 100, 100),
-    )
-    
-    if checks['printable']:
-        slicer.slice()
-        quote = slicer.quote_price_basic()
-        print(quote)
-    else:
-        print(f"The STL file is to large to print with the given printer dimensions (mm): X: {checks['printer_dimensions']['x']}, Y: {checks['printer_dimensions']['y']}, Z: {checks['printer_dimensions']['z']}")
