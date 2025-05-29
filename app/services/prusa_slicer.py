@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 class PrusaSlicer:
     def __init__(
         self, 
-        stl_file_path: Path,  # Path to the STL file
-        base_price=5.0,         # Base price for slicing
-        cost_per_gram=0.1,      # Cost per gram of filament
-        currency="USD",         # Currency for pricing
-        cost_per_hour=1.0,      # Cost per hour of printing
-        config_path=Path("./app/services/configs/config.ini"),       # Path to PrusaSlicer config file
+        stl_file_path: Path = '',
+        base_price=5.0,
+        cost_per_gram=0.1,
+        currency="USD",
+        cost_per_hour=1.0,
+        config_path=Path("./app/services/configs/default_config.ini"),
+
     ):
         """
         Initialize a PrusaSlicer instance with slicing parameters
@@ -48,12 +49,13 @@ class PrusaSlicer:
         # Parameter to flag mapping
         self.param_flags = {
             'config_path': '--load',
+            'material_profile': '--material-profile',
         }
 
     def slice(
             self,
             stl_file_path : Path = None,
-            output_gcode_path : Path = '/app/app/db/temp',
+            output_gcode_path : Path = './app/db/temp',
             **override_params
         ):
         """
@@ -122,7 +124,7 @@ class PrusaSlicer:
         details = get_prusa_print_details(gcode_file_path=gcode_file_path)
         
         time =  time_str_to_seconds(details['estimated_time']) # Convert estimated time to seconds
-        weight = float(details['filament_weight']) # wieght in grams
+        weight = float(details['filament_weight']) # weight in grams
 
         total_price = round((self.base_price + (time / 3600) * self.cost_per_hour + (weight * self.cost_per_gram)), 2)
 

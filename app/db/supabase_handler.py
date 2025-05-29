@@ -54,17 +54,14 @@ async def upload_file(
         directory = f"{user_id}/{folder_name}"
     else:
         directory = f"{user_id}"
-
-    # Check if the file already exists
-    files = supabase.storage.from_(bucket_name).list(path=directory)
     
     # Check if the file already exists
+    files = supabase.storage.from_(bucket_name).list(path=directory)
     if any(existing_file['name'] == file.filename for existing_file in files):
         if overwrite:
-            # If overwrite is True, remove the existing file
             supabase.storage.from_(bucket_name).remove([f"{directory}/{file.filename}"])
         else:
-            raise HTTPException(status_code=400, detail=f"File '{file.filename}' already exists at directory: {directory}.  Consider useing overwrite=True to replace it.")
+            raise HTTPException(status_code=400, detail=f"File '{file.filename}' already exists at directory: {directory}.  Consider using overwrite=True to replace it.")
     
     # Read file content
     file_content = await file.read()
@@ -104,11 +101,10 @@ def download_file(bucket_name: str, file_path: str) -> dict:
         }
     
     except Exception as e:
-        return {
-            "message": f"Failed to download file '{file_path}'",
-            "status": 404,
-            "data": e
-        }
+        raise HTTPException(
+            status_code=404, 
+            detail="Failed to download G-code file"
+        )
 
 def delete_file(bucket_name: str, file_path: str) -> dict:
     """

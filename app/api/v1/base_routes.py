@@ -1,8 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, Query
 from app.schemas.responses import InstantQuoteResponse
-from app.api.v1.pro_routes import upload_stl, slice_model, quote_model
+from app.api.v1.pro_routes import upload_stl
 from app.utils.utilities import check_printability, cleanup_files
 from app.schemas.responses import PrintabilityResponse
+
 
 router = APIRouter()
 

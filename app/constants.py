@@ -3,7 +3,7 @@ import os
 from pydantic_settings import BaseSettings
 
 # Constants for file paths and bucket names
-LOCAL_DIR = Path("/app/app/db/temp")
+LOCAL_DIR = Path("./app/db/temp")
 
 # Bucket names
 BUCKET_STL_FILES = "stl-files"
