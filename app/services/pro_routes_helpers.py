@@ -69,14 +69,14 @@ def get_filament_profile_section(filament_type):
 
 def create_ini_config(
         user_id: str,
-        file_path: str,
-        config_details: PrinterConfig,
+        stl_file_path: str,
+        printer_config: PrinterConfig,
     ):
     """
     Create a configuration file for the slicer.
     
     Args:
-        config_details: Dictionary containing printer configuration settings
+        printer_config: Dictionary containing printer configuration settings
         
     Returns:
         str: The path to the created configuration file
@@ -90,9 +90,9 @@ def create_ini_config(
         config_content = f.read()
     
     config_dict = json.loads(config_content)
-    config_dict['bed_shape'] = f"0x0,{config_details.bed_size_x}x0,{config_details.bed_size_x}x{config_details.bed_size_y},0x{config_details.bed_size_y}"
+    config_dict['bed_shape'] = f"0x0,{printer_config.bed_size_x}x0,{printer_config.bed_size_x}x{printer_config.bed_size_y},0x{printer_config.bed_size_y}"
     
-    for key, value in dict(config_details).items():
+    for key, value in dict(printer_config).items():
         if key == 'bed_size_z':
             config_dict['max_print_height'] = value
 
@@ -102,8 +102,8 @@ def create_ini_config(
 
         elif key == 'filament_type':
             config_dict.update(FILAMENT_PROFILES[value])
-            config_dict['first_layer_temperature'] = round(config_details.temperature * 1.05)
-            config_dict['first_layer_bed_temperature'] = round(config_details.bed_temperature * 1.25)
+            config_dict['first_layer_temperature'] = round(printer_config.temperature * 1.05)
+            config_dict['first_layer_bed_temperature'] = round(printer_config.bed_temperature * 1.25)
         
         elif key == 'support_material':
             config_dict['support_material'] = '1' if value else '0'
@@ -120,7 +120,7 @@ def create_ini_config(
     for key, value in config_dict.items():
         config_string += f"{key} = {value}\n"
     
-    file_path_parts = file_path.split('/')
+    file_path_parts = stl_file_path.split('/')
     output_name = file_path_parts[-1].rsplit('.', 1)[0] + '.ini'
 
     job_output_dir = Path(LOCAL_DIR / user_id)

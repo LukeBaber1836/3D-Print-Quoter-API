@@ -1,39 +1,43 @@
 from fastapi import APIRouter, UploadFile, File, Query
-from app.schemas.responses import InstantQuoteResponse
-from app.api.v1.pro_routes import upload_stl
 from app.utils.utilities import check_printability, cleanup_files
-from app.schemas.responses import PrintabilityResponse
-
+from app.schemas.responses import (
+    InstantQuoteResponse,
+    PrintabilityResponse, 
+    PrinterConfig, 
+    QuoteConfig
+)
+from app.services.base_routes_helpers import local_slice_model, local_quote_model, local_upload_stl
 
 router = APIRouter()
 
 @router.post("/instant-quote/", response_model=InstantQuoteResponse)
 async def instant_quote(
     user_id: str = Query(..., description="User ID for the print job"),
-    file: UploadFile = File(..., description="STL file to check printability")
+    printer_config: PrinterConfig = PrinterConfig(),
+    quote_config: QuoteConfig = QuoteConfig(),
+    file: UploadFile = File(..., description="STL file for the instant quote")
 ):
     """Get instant quote details for a sliced model"""
-    upload_response = await upload_stl(
-        file=file,
+    upload_response = await local_upload_stl(
         user_id=user_id,
-        local_upload=True,
+        file=file
     )
     
-    slice_model_response = await slice_model(
+    slice_model_response = await local_slice_model(
         user_id=user_id,
-        use_local=True,
-        save_file=False,
-        file_path=upload_response.file_path + '/' + upload_response.file_name,
+        cleanup=False,
+        stl_file_path=upload_response.stl_file_path + '/' + upload_response.file_name,
+        printer_config=printer_config
     )
-
-    quote_model_response = await quote_model(
+    
+    quote_model_response = await local_quote_model(
         user_id=user_id,
-        gcode_file_path=slice_model_response.gcode_path,
-        use_local=True,
+        gcode_path=slice_model_response.gcode_path,
+        quote_config=quote_config,
     )
 
     return InstantQuoteResponse(
-        user_id = quote_model_response.user_id,
+        user_id = user_id,
         gcode_path=quote_model_response.gcode_path,
         total_price=quote_model_response.total_price,
         currency=quote_model_response.currency,
@@ -53,13 +57,13 @@ async def check_model_printability(
     file: UploadFile = File(..., description="STL file to check printability"),
 ):
     """Check if an STL model fits on the print bed.  Dimensions are in millimeters (mm)"""
-    upload_response = await upload_stl(
+    # TODO: Find way to avoid local upload, handle the file directly from the UploadFile
+    upload_response = await local_upload_stl(
         file=file,
         user_id=user_id,
-        local_upload=True,
     )
     
-    file_path = f"{upload_response.file_path}/{upload_response.file_name}"
+    file_path = f"{upload_response.stl_file_path}/{upload_response.file_name}"
     printability_result = check_printability(
         stl_file_path=file_path,
         printer_dimensions=(x_dimension, y_dimension, z_dimension),

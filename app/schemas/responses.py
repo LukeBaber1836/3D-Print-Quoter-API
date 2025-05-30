@@ -6,7 +6,7 @@ class STLResponse(BaseModel):
     status: str
     user_id: str
     file_name: str
-    file_path: str
+    stl_file_path: str
 
 class SliceResponse(BaseModel):
     status: str
@@ -51,9 +51,9 @@ class TokenResponse(BaseModel):
 class PrinterConfig(BaseModel):
     """Printer configuration settings for slicing"""
     # Printer bed dimensions
-    bed_size_x: int = Field(default=210.0, description="X dimension of the print bed in mm")
-    bed_size_y: int = Field(default=210.0, description="Y dimension of the print bed in mm")
-    bed_size_z: int = Field(default=250.0, description="Z dimension of the print bed in mm")
+    bed_size_x: int = Field(default=210, description="X dimension of the print bed in mm")
+    bed_size_y: int = Field(default=210, description="Y dimension of the print bed in mm")
+    bed_size_z: int = Field(default=250, description="Z dimension of the print bed in mm")
     
     # Speed settings
     print_speed: int = Field(default=100, description="Default print speed in mm/s")

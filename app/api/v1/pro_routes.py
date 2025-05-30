@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.utils.utilities import convert_path_to_upload_file, cleanup_files, cleanup_after_download
 from app.schemas.responses import STLResponse ,SliceResponse, QuoteResponse, PrinterConfig, QuoteConfig
-from app.constants import LOCAL_DIR, BUCKET_STL_FILES, BUCKET_GCODE_FILES
+from app.constants import LOCAL_DIR, BUCKET_FILES
 from app.services.prusa_slicer import PrusaSlicer
 from app.services.pro_routes_helpers import create_ini_config
 from app.db.supabase_handler import upload_file, download_file
@@ -21,44 +21,25 @@ router = APIRouter()
 async def upload_stl(
         user_id: str = Query(..., description="User ID for the print job"),
         folder_name: str = Query(None, description="Folder name in the bucket to upload the file into"),
-        local_upload: bool = Query(False, description="Upload the file to the server or cloud storage"),
         file: UploadFile = File(...),
     ):
     """Upload an STL file"""
     if not file.filename.lower().endswith('.stl'):
         raise HTTPException(status_code=400, detail="File must be an STL")
 
-    if local_upload:
-        job_output_dir = Path(LOCAL_DIR / user_id)
-        job_output_dir.mkdir(parents=True, exist_ok=True)
+    response = await upload_file(
+        user_id=user_id,
+        folder_name=folder_name,
+        bucket_name=BUCKET_FILES,
+        file=file
+    )
 
-        file_path = LOCAL_DIR / user_id / file.filename
-
-        # Save the uploaded file
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        return STLResponse(
-            status="success",
-            user_id=user_id,
-            file_name=file.filename,
-            file_path=str(job_output_dir)
-        )
-
-    else:
-        response = await upload_file(
-            user_id=user_id,
-            folder_name=folder_name,
-            bucket_name="stl-files",
-            file=file
-        )
-
-        return STLResponse(
-            status=response['status'],
-            user_id=user_id,
-            file_name=file.filename,
-            file_path=response['file_path']
-        )
+    return STLResponse(
+        status=response['status'],
+        user_id=user_id,
+        file_name=file.filename,
+        stl_file_path=response['file_path']
+    )
 
 @router.post(
     "/stl/slice/",
@@ -68,7 +49,7 @@ async def upload_stl(
 async def slice_model(
     user_id: str = Query(..., description="User ID for the print job"),
     file_path: str = Query(..., description="Path to the STL file (this can be found in the upload response)"),
-    config_details: PrinterConfig = PrinterConfig(),
+    printer_config : PrinterConfig = PrinterConfig(),
 ):
     # Generate output file path
     file_path_parts = file_path.split('/')
@@ -77,9 +58,10 @@ async def slice_model(
 
     # Get file from supabase and write to local
     download_file_response = download_file(
-        bucket_name=BUCKET_STL_FILES,
+        bucket_name=BUCKET_FILES,
         file_path=file_path
     )
+    
     job_output_dir = LOCAL_DIR / user_id
     job_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,8 +70,8 @@ async def slice_model(
 
     response = create_ini_config(
         user_id=user_id,
-        file_path=file_path,
-        config_details=config_details
+        stl_file_path=file_path,
+        printer_config=printer_config
     )
 
     slicer = PrusaSlicer(
@@ -116,7 +98,7 @@ async def slice_model(
         user_id=user_id,
         overwrite=True,
         folder_name=trimmed_folder_path,
-        bucket_name=BUCKET_STL_FILES,
+        bucket_name=BUCKET_FILES,
         file=file
     )
     
@@ -141,12 +123,12 @@ async def slice_model(
 async def quote_model(
     user_id: str = Query(..., description="User ID for the print job"),
     gcode_path: str = Query(..., description="Path to the G-code file (this can be found in the slice response)"),
-    quote_details: QuoteConfig = QuoteConfig(),
+    quote_config: QuoteConfig = QuoteConfig(),
 ):  
 
     # Download the G-code file from Supabase
     download_response = download_file(
-        bucket_name=BUCKET_STL_FILES,
+        bucket_name=BUCKET_FILES,
         file_path=gcode_path
     )
     
@@ -158,10 +140,10 @@ async def quote_model(
         f.write(download_response['data'])
 
     slicer = PrusaSlicer(
-        base_price=quote_details.base_price,
-        cost_per_hour=quote_details.cost_per_hour,
-        cost_per_gram=quote_details.cost_per_gram,
-        currency=quote_details.currency,
+        base_price=quote_config.base_price,
+        cost_per_hour=quote_config.cost_per_hour,
+        cost_per_gram=quote_config.cost_per_gram,
+        currency=quote_config.currency,
     )
     
     # Get print details
@@ -194,7 +176,7 @@ async def download_gcode(
         gcode_path: str = Query(..., description="Path to the G-code file (this can be found in the slice response)"),
     ):
     download_response = download_file(
-        bucket_name=BUCKET_STL_FILES,
+        bucket_name=BUCKET_FILES,
         file_path=gcode_path
     )
 

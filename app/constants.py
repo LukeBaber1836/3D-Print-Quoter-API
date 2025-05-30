@@ -6,8 +6,7 @@ from pydantic_settings import BaseSettings
 LOCAL_DIR = Path("./app/db/temp")
 
 # Bucket names
-BUCKET_STL_FILES = "stl-files"
-BUCKET_GCODE_FILES = "gcode-files"
+BUCKET_FILES = "user-files"
 
 class Settings(BaseSettings):
     # JWT Settings

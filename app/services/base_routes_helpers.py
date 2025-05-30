@@ -1,67 +1,84 @@
-from fastapi import HTTPException, Query
 import shutil
-
+from pathlib import Path
+from fastapi import UploadFile, Form, HTTPException
+from fastapi.exceptions import RequestValidationError
+from pydantic import TypeAdapter
+from app.constants import LOCAL_DIR
 from app.utils.utilities import convert_path_to_upload_file, cleanup_files
-from app.schemas.responses import SliceResponse, QuoteResponse
-from app.constants import LOCAL_DIR, BUCKET_GCODE_FILES
+from app.schemas.responses import SliceResponse, QuoteResponse, STLResponse, PrinterConfig, QuoteConfig
 from app.services.prusa_slicer import PrusaSlicer
-from app.db.supabase_handler import upload_file
+from app.services.pro_routes_helpers import create_ini_config
 
 
-async def slice_model(
-    user_id: str = Query(..., description="User ID for the print job"),
-    file_path: str = Query(..., description="Path to the STL file (this can be found in the upload response)"),
-    remove_local: bool = Query(False, description="Remove temporary files after slicing"),
-    save_file: bool = True,
-    config_path: str = None
-):
-    """Slice the uploaded STL file"""
-    # Generate output file path
-    file_path_parts = file_path.split('/')
-    output_name = file_path_parts[-1].rsplit('.', 1)[0] + '.gcode'
-    output_path = file_path.rsplit('.', 1)[0] + '.gcode'
+async def local_upload_stl(
+        user_id: str,
+        file: UploadFile,
+    ):
+    """Upload an STL file"""
+    if not file.filename.lower().endswith('.stl'):
+        raise HTTPException(status_code=400, detail="File must be an STL")
 
-    # Check if the STL file exists locally
-    job_output_dir = LOCAL_DIR / user_id
-    if not (job_output_dir / file_path_parts[-1]).exists():
-        raise HTTPException(status_code=404, detail="STL file not found. Upload the model first or set use_local to False.")
+    job_output_dir = Path(LOCAL_DIR / user_id)
+    job_output_dir.mkdir(parents=True, exist_ok=True)
 
-    slicer = PrusaSlicer(
-        stl_file_path=file_path
+    file_path = LOCAL_DIR / user_id / file.filename
+
+    # Save the uploaded file
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return STLResponse(
+        status="success",
+        user_id=user_id,
+        file_name=file.filename,
+        stl_file_path=str(job_output_dir)
     )
-    
+
+async def local_slice_model(
+    user_id: str,
+    stl_file_path: str,
+    printer_config: PrinterConfig,
+    cleanup: bool = False,
+):
+    # Generate output file path
+    stl_file_path_parts = stl_file_path.split('/')
+    output_name = stl_file_path_parts[-1].rsplit('.', 1)[0] + '.gcode'
+    output_path = stl_file_path.rsplit('.', 1)[0] + '.gcode'
+
+    job_output_dir = LOCAL_DIR / user_id
+    job_output_dir.mkdir(parents=True, exist_ok=True)
+
+    response = create_ini_config(
+        user_id=user_id,
+        stl_file_path=stl_file_path,
+        printer_config=printer_config
+    )
+
+    # TODO: See if we can avoid writing the config file to disk
+    slicer = PrusaSlicer(
+        stl_file_path=stl_file_path,
+        config_path=response['output_dir'],
+    )
+
     # Run slicing operation
     success = slicer.slice(
-        stl_file_path=job_output_dir / file_path_parts[-1],
         output_gcode_path=job_output_dir / output_name
     )
     
-    if save_file:
-        file = await convert_path_to_upload_file(
-            file_path=job_output_dir / output_name
-        )
-
-        trimmed_folder_path = '/'.join(output_path.split('/')[2:][:-1])
-
-        # Upload the sliced G-code file to Supabase
-        upload_response = await upload_file(
-            user_id=user_id,
-            overwrite=True,
-            folder_name=trimmed_folder_path,
-            bucket_name=BUCKET_GCODE_FILES,
-            file=file
-        )
-        
-        if upload_response['status'] != 'successful':
-            raise HTTPException(status_code=500, detail="Failed to upload G-code file")
-        
-        #Remove local stl and gcode file after upload for cleanup
-        if remove_local:
-            shutil.rmtree(job_output_dir)
-            
     if not success:
         raise HTTPException(status_code=500, detail="Slicing failed")
     
+    # Convert the local G-code file to an UploadFile object
+    file = await convert_path_to_upload_file(
+        file_path=job_output_dir / output_name
+    )
+
+    trimmed_folder_path = '/'.join(output_path.split('/')[1:][:-1])
+    
+    #Remove local stl and gcode file after upload for cleanup
+    if cleanup:
+        cleanup_files(user_id=user_id)
+
     return SliceResponse(
         status="success",
         user_id=user_id,
@@ -69,24 +86,28 @@ async def slice_model(
         gcode_path=output_path
     )
 
-async def quote_model(
-    user_id: str = Query(..., description="User ID for the print job"),
-    gcode_path: str = Query(..., description="Path to the G-code file (this can be found in the slice response)")
+async def local_quote_model(
+    user_id: str,
+    gcode_path: str,
+    quote_config: QuoteConfig,
+    cleanup: bool = True,
+    
 ):  
-    """Get print details for a sliced model"""
-    # Check if the sliced file exists
-    gcode_path = LOCAL_DIR / user_id / gcode_path.split('/')[-1]
-
-    if not gcode_path.exists():
-        raise HTTPException(status_code=404, detail="G-code file not found. Slice the model first.")
-
+    slicer = PrusaSlicer(
+        base_price=quote_config.base_price,
+        cost_per_hour=quote_config.cost_per_hour,
+        cost_per_gram=quote_config.cost_per_gram,
+        currency=quote_config.currency,
+    )
+    
     # Get print details
-    details = PrusaSlicer.quote_price_basic(
-        gcode_file_path=gcode_path
+    details = slicer.quote_price_basic(
+        gcode_file_path= LOCAL_DIR / user_id / gcode_path.split('/')[-1]
     )
 
     # Clean up local files
-    cleanup_files(user_id=user_id)
+    if cleanup:
+        cleanup_files(user_id=user_id)
     
     return QuoteResponse(
         user_id=user_id,
