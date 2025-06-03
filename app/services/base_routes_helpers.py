@@ -1,13 +1,14 @@
+import json
 import shutil
 from pathlib import Path
-from fastapi import UploadFile, Form, HTTPException
-from fastapi.exceptions import RequestValidationError
+from fastapi import UploadFile, HTTPException
 from pydantic import TypeAdapter
-from app.constants import LOCAL_DIR
 from app.utils.utilities import convert_path_to_upload_file, cleanup_files
 from app.schemas.responses import SliceResponse, QuoteResponse, STLResponse, PrinterConfig, QuoteConfig
 from app.services.prusa_slicer import PrusaSlicer
 from app.services.pro_routes_helpers import create_ini_config
+from app.db.supabase_handler import download_file
+from app.constants import LOCAL_DIR, BUCKET_FILES
 
 
 async def local_upload_stl(
@@ -120,3 +121,80 @@ async def local_quote_model(
         estimated_time_seconds=details['estimated_time_seconds'],
         status="quoted"
     )
+
+def create_quote_config(
+    user_id: str,
+    quote_config_file: str,
+    quote_config: QuoteConfig,
+):
+    """
+    Create a quote_config json file using the provided QuoteConfig object.
+    
+    Args:
+        user_id: User ID for the print job
+        quote_config_file: Path to the quote configuration file
+        quote_config: QuoteConfig object with configuration details
+    
+    Returns:
+        Path to the created quote configuration file
+    """
+    file_path_parts = quote_config_file.split('/')
+    output_name = file_path_parts[-1].rsplit('.', 1)[0] + '.json'
+
+    job_output_dir = Path(LOCAL_DIR / user_id)
+    job_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(job_output_dir / output_name, 'w') as f:
+        json.dump(quote_config.model_dump(), f, indent=4)
+    
+    return {
+        'output_dir': job_output_dir / output_name
+    }
+
+def get_printer_config(
+    user_id: str,
+    profile_name: str,
+):
+    """
+    Get the printer configuration from an INI file.
+    
+    Args:
+        user_id: User ID for the print job
+        quote_config_file: Path to the printer configuration file
+    
+    Returns:
+        PrinterConfig dictionary object with the loaded configuration
+    """
+
+    file_path = f"{user_id}/profiles/{profile_name}/{profile_name}.ini"
+
+    printer_config = download_file(
+        bucket_name=BUCKET_FILES,
+        file_path=file_path,
+    )
+
+    return PrinterConfig.model_validate(printer_config)
+
+def get_quote_config(
+    user_id: str,
+    profile_name: str,
+):
+    """
+    Get the quote configuration from a JSON file.
+    
+    Args:
+        user_id: User ID for the print job
+        quote_config_file: Path to the quote configuration file
+    
+    Returns:
+        QuoteConfig dictionary object with the loaded configuration
+    """
+
+    file_path = f"{user_id}/profiles/{profile_name}/{profile_name}.json"
+
+    quote_config = download_file(
+        bucket_name=BUCKET_FILES,
+        file_path=file_path,
+    )
+
+    return QuoteConfig.model_validate(quote_config) if quote_config else QuoteConfig.model_validate({})

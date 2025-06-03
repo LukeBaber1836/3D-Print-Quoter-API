@@ -73,10 +73,12 @@ def create_ini_config(
         printer_config: PrinterConfig,
     ):
     """
-    Create a configuration file for the slicer.
+    Create a configuration .ini file for the slicer.
     
     Args:
-        printer_config: Dictionary containing printer configuration settings
+        user_id (str): User ID for the print job
+        stl_file_path (str): Path to the STL file
+        printer_config (PrinterConfig): Configuration settings for the printer
         
     Returns:
         str: The path to the created configuration file

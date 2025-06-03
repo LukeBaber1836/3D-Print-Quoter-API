@@ -103,7 +103,7 @@ def download_file(bucket_name: str, file_path: str) -> dict:
     except Exception as e:
         raise HTTPException(
             status_code=404, 
-            detail="Failed to download G-code file"
+            detail="Failed to download file. File does not exist"
         )
 
 def delete_file(bucket_name: str, file_path: str) -> dict:

@@ -1,52 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
-# -------------------------- RESPONSE SCHEMAS --------------------------
-class STLResponse(BaseModel):
-    status: str
-    user_id: str
-    file_name: str
-    stl_file_path: str
-
-class SliceResponse(BaseModel):
-    status: str
-    user_id: str
-    file_name: str
-    gcode_path: Optional[str] = None
-    
-class QuoteResponse(BaseModel):
-    user_id: str
-    gcode_path: str
-    total_price: Optional[float] = None
-    currency: Optional[str] = None
-    estimated_time: Optional[str] = None
-    filament_weight: Optional[float] = None
-    filament_cost: Optional[float] = None
-    estimated_time_seconds: Optional[int] = None
-    status: str
-
-class InstantQuoteResponse(BaseModel):
-    user_id : str
-    gcode_path: str
-    total_price: Optional[float] = None
-    currency: Optional[str] = None
-    estimated_time: Optional[str] = None
-    estimated_time_seconds: Optional[int] = None
-    filament_weight: Optional[float] = None
-    filament_cost: Optional[float] = None
-    status: str
-
-class PrintabilityResponse(BaseModel):
-    user_id : str
-    fits_printer: bool
-    model_dimensions : dict
-    printer_dimensions : dict
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-
-
 # -------------------------- INPUT SCHEMAS --------------------------
 class PrinterConfig(BaseModel):
     """Printer configuration settings for slicing"""
@@ -79,3 +33,60 @@ class QuoteConfig(BaseModel):
     cost_per_hour: float = Field(default=2.5, description="Cost per hour of printing")
     cost_per_gram: float = Field(default=0.02, description="Cost per gram of filament used")
     base_price: float = Field(default=5.0, description="Base price for the print job")
+
+class ProfileConfig(BaseModel):
+    """Configuration for user profiles"""
+    profile_name: str = Field(default="default", description="Name of the printer profile")
+    printer_config: PrinterConfig = Field(default_factory=PrinterConfig, description="Printer configuration settings")
+    quote_config: QuoteConfig = Field(default_factory=QuoteConfig, description="Quote configuration settings")
+
+# -------------------------- RESPONSE SCHEMAS --------------------------
+class STLResponse(BaseModel):
+    status: str
+    user_id: str
+    file_name: str
+    stl_file_path: str
+
+class SliceResponse(BaseModel):
+    status: str
+    user_id: str
+    file_name: str
+    gcode_path: Optional[str] = None
+    
+class QuoteResponse(BaseModel):
+    user_id: str
+    gcode_path: str
+    total_price: Optional[float] = None
+    currency: Optional[str] = None
+    estimated_time: Optional[str] = None
+    filament_weight: Optional[float] = None
+    filament_cost: Optional[float] = None
+    estimated_time_seconds: Optional[int] = None
+    status: str
+
+class ProfileConfigRepsonse(BaseModel):
+    user_id : str
+    status: str
+    profile_name: str
+    printer_config: PrinterConfig
+    quote_config: QuoteConfig
+
+class InstantQuoteResponse(BaseModel):
+    user_id : str
+    total_price: Optional[float] = None
+    currency: Optional[str] = None
+    estimated_time: Optional[str] = None
+    estimated_time_seconds: Optional[int] = None
+    filament_weight: Optional[float] = None
+    filament_cost: Optional[float] = None
+    status: str
+
+class PrintabilityResponse(BaseModel):
+    user_id : str
+    fits_printer: bool
+    model_dimensions : dict
+    printer_dimensions : dict
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str

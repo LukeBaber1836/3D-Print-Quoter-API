@@ -9,8 +9,8 @@ app = FastAPI(
     description="API for slicing 3D models"
 )
 
-app.include_router(base_router, prefix="/v1", tags=["Base Level"])
-app.include_router(pro_router, prefix="/v1", tags=["Pro Level"])
+app.include_router(base_router, prefix="/v1", tags=["Basic Level"])
+app.include_router(pro_router, prefix="/v1", tags=["Advanced Level"])
 app.include_router(auth_router, prefix="/v1", tags=["Authentication"])
 
 @app.get("/", include_in_schema=False)
