@@ -27,3 +27,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends locales && \
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8
+
+# Fly.io doesn't use docker compose, so we need to expose the port manually here
+# Expose port 8080
+EXPOSE 8080
+
+# Set the command to run the FastAPI app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -22,7 +22,7 @@
                 "app.main:app",
                 "--reload",
                 "--port",
-                "8000"
+                "8081"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
