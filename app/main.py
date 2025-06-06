@@ -3,10 +3,22 @@ from fastapi import FastAPI
 from app.api.v1.base_routes import router as base_router
 from app.api.v1.pro_routes import router as pro_router
 from app.api.v1.auth import router as auth_router
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Cloud Slicer API",
     description="API for slicing 3D models"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://cloud-slicer-app.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(base_router, prefix="/v1", tags=["Basic Level"])
